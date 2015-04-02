@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Net.Sockets;
 using System.Text;
 using System.Xml;
 using TagLib;
@@ -35,6 +36,7 @@ namespace MusicTagger
         public string Name { get; private set; }
         public TrackInfo[][] Tracks { get; private set; }
         public uint Discs { get; private set; }
+        public DateTime ReleaseDate { get; private set; }
 
         public uint TrackCount
         {
@@ -47,15 +49,37 @@ namespace MusicTagger
         public void WriteToFile(File taggedFile)
         {
             var tag = taggedFile.Tag;
-            var info = Tracks[Math.Min(tag.Disc - 1, 0)][tag.Track - 1];
+            var id3tag = taggedFile.GetTag(TagTypes.Id3v2) as TagLib.Id3v2.Tag;
+            var disc = Tracks[Math.Min(tag.Disc - 1, 0)];
+            var info = disc[tag.Track - 1];
+            var artists = new List<string>();
+
+            for (var i = 0; i < Discs; i++)
+            {
+                var discArtists = from track in Tracks[i] select track.Artists;
+                foreach (var discArtist in discArtists)
+                {
+                    artists.AddRange(discArtist);
+                }
+            }
+
+            var uniqueArtists = artists.Distinct().ToList();
+            uniqueArtists.Sort((a, b) => artists.Count(v => v == a) - Artists.Count(v => v == b));
+
+            tag.AlbumArtists = artists.Distinct().Count() > 1 ? new []{"Various Artists"} : artists.Distinct().ToArray();
+            tag.AlbumArtistsSort = uniqueArtists.ToArray();
+
+            if (id3tag != null) id3tag.IsCompilation = artists.Count > 1;
 
             tag.Album = Name;
             tag.Performers = info.Artists;
-            tag.TrackCount = TrackCount;
+            tag.PerformersSort = info.Artists;
+            tag.TrackCount = (uint) disc.Length;
             tag.Track = info.Track;
             tag.Title = info.Title;
             tag.Disc = info.Disc;
             tag.DiscCount = Discs;
+            tag.Year = (uint) ReleaseDate.Year;
 
             var found = false;
             for (var i = 0; i < tag.Pictures.Length; i++)
@@ -73,7 +97,8 @@ namespace MusicTagger
 
             var newPictures = new IPicture[tag.Pictures.Length + 1];
             Array.Copy(tag.Pictures, 0, newPictures, 1, tag.Pictures.Length);
-            newPictures[0] = Picture;
+            newPictures[0] = new AttachedPictureFrame(Picture);
+            tag.Pictures = newPictures;
 
             taggedFile.Save();
         }
@@ -103,6 +128,7 @@ namespace MusicTagger
                 new Picture(
                     Web.DownloadData(String.Format("{0}/Album/CoverPicture/{1}", Program.ApiEndpoint,
                         doc["Id"].InnerText))) {Type = PictureType.FrontCover};
+            album.ReleaseDate = new DateTime(Convert.ToInt32(doc["ReleaseDate"]["Year"].InnerText), Convert.ToInt32(doc["ReleaseDate"]["Month"].InnerText), Convert.ToInt32(doc["ReleaseDate"]["Day"].InnerText));
 
             return album;
         }

@@ -19,10 +19,11 @@ namespace MusicTagger
 
         private static void Main(string[] args)
         {
-            var dir = @"E:\Users\Cayde\Music";
+            var dir = @"E:\Users\Cayde\Documents\Visual Studio 2013\Projects\MusicTagger\MusicTagger\bin\TestData";
 //            var info = AlbumInfo.GetFromId(2278);
             IterateDirectory(new DirectoryInfo(dir));
             File.WriteAllLines(Path.Combine(dir, "new-fails.txt"), Nulls);
+            Console.ReadKey();
         }
 
         private static void IterateDirectory(DirectoryInfo di)
@@ -63,7 +64,7 @@ namespace MusicTagger
             catch (Exception ex)
             {
                 //ignored
-                Console.WriteLine("Exception! of type: {0}", ex);
+                //Console.WriteLine("Exception! of type: {0}", ex);
             }
         }
 
