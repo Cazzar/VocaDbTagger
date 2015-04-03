@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Net.Sockets;
 using System.Text;
 using System.Xml;
 using TagLib;
 using TagLib.Id3v2;
+using Tag = TagLib.Id3v2.Tag;
 
 namespace MusicTagger
 {
@@ -49,31 +49,38 @@ namespace MusicTagger
         public void WriteToFile(File taggedFile)
         {
             var tag = taggedFile.Tag;
-            var id3tag = taggedFile.GetTag(TagTypes.Id3v2) as TagLib.Id3v2.Tag;
+            var id3Tag = taggedFile.GetTag(TagTypes.Id3v2) as Tag;
             var disc = Tracks[Math.Min(tag.Disc - 1, 0)];
             var info = disc[tag.Track - 1];
-            var artists = new List<string>();
+            var artists = new List<Artist>();
 
             for (var i = 0; i < Discs; i++)
             {
-                var discArtists = from track in Tracks[i] select track.Artists;
+                var discArtists = (from track in Tracks[i] select track.Artists);
+
                 foreach (var discArtist in discArtists)
                 {
-                    artists.AddRange(discArtist);
+                    artists.AddRange(discArtist.Where(a => a.Categories == "Producer"));
                 }
             }
 
             var uniqueArtists = artists.Distinct().ToList();
-            uniqueArtists.Sort((a, b) => artists.Count(v => v == a) - Artists.Count(v => v == b));
+            uniqueArtists.Sort((a, b) => artists.Count(v => v == a) - artists.Count(v => v == b));
 
-            tag.AlbumArtists = artists.Distinct().Count() > 1 ? new []{"Various Artists"} : artists.Distinct().ToArray();
-            tag.AlbumArtistsSort = uniqueArtists.ToArray();
+            tag.AlbumArtists = uniqueArtists.Count() > 1 ? new []{"Various Artists"} : uniqueArtists.Select(a => a.Name).ToArray();
+            tag.AlbumArtistsSort = uniqueArtists.Select(a => a.Name).ToArray();
 
-            if (id3tag != null) id3tag.IsCompilation = artists.Count > 1;
+            if (id3Tag != null)
+            {
+                id3Tag.IsCompilation = uniqueArtists.Count > 1;
+                id3Tag.Comment = String.Format("VocaDB: {0}\nAlbum Artists{1}", VocaDbId,
+                    String.Join(", ", uniqueArtists));
+            }
 
             tag.Album = Name;
-            tag.Performers = info.Artists;
-            tag.PerformersSort = info.Artists;
+
+            tag.Performers = new[] { info.ArtistString };
+            tag.PerformersSort = new[] { info.ArtistString };
             tag.TrackCount = (uint) disc.Length;
             tag.Track = info.Track;
             tag.Title = info.Title;
@@ -107,7 +114,7 @@ namespace MusicTagger
         {
             var apiResponse = new XmlDocument();
             Console.WriteLine("API Query! (Album Info by ID)");
-            apiResponse.LoadXml(Web.DownloadString(String.Format("{0}/api/albums/{1}", Program.ApiEndpoint, id)));
+            apiResponse.LoadXml(Web.DownloadString(String.Format("{0}/api/albums/{1}?fields=tracks&songFields=artists", Program.ApiEndpoint, id)));
             return LoadFromXml(apiResponse.DocumentElement);
         }
 
@@ -121,7 +128,8 @@ namespace MusicTagger
                 VocaDbId = Convert.ToUInt32(doc["Id"].InnerText)
             };
 
-            LoadTracks(Convert.ToUInt32(doc["Id"].InnerText), album);
+//            LoadTracks(Convert.ToUInt32(doc["Id"].InnerText), album);
+            LoadTracks(doc["Tracks"], album);
 
             Console.WriteLine("API Query! (Picture)");
             album.Picture =
@@ -142,7 +150,7 @@ namespace MusicTagger
             var doc = apiResponse.DocumentElement;
             var tracks = (from node in doc.ChildNodes.Cast<XmlNode>().Where(node => node.Name == "SongInAlbumContract")
                 let title = node["Name"].InnerText
-                let artists = new[] {node["Song"]["ArtistString"].InnerText}
+                let artists = (from artist in node["Artists"].ChildNodes.Cast<XmlNode>() select new Artist(artist["Name"].InnerText, artist["Artist"]["ArtistType"].InnerText, artist["Categories"].InnerText)).ToArray()
                 let disc = Convert.ToUInt32(node["DiscNumber"].InnerText)
                 let track = Convert.ToUInt32(node["TrackNumber"].InnerText)
                 let length = Convert.ToUInt32(node["Song"]["LengthSeconds"].InnerText)
@@ -162,12 +170,34 @@ namespace MusicTagger
         }
 
         [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
+        [SuppressMessage("ReSharper", "AssignNullToNotNullAttribute")]
+        private static void LoadTracks(XmlNode tracksNode, AlbumInfo album)
+        {
+            var tracks = (from node in tracksNode.ChildNodes.Cast<XmlNode>()
+                          let title = node["Name"].InnerText
+                          let artists = (from artist in node["Song"]["Artists"].ChildNodes.Cast<XmlNode>() select new Artist(artist["Name"].InnerText, artist["Artist"]["ArtistType"].InnerText, artist["Categories"].InnerText)).ToArray()
+                          let disc = Convert.ToUInt32(node["DiscNumber"].InnerText)
+                          let track = Convert.ToUInt32(node["TrackNumber"].InnerText)
+                          let length = Convert.ToUInt32(node["Song"]["LengthSeconds"].InnerText)
+                          select new TrackInfo(title, artists, disc, track, length)).ToList();
+            album.Discs = tracks.Max(t => t.Disc);
+            album.Tracks = new TrackInfo[album.Discs][];
+
+            for (var i = 1; i <= album.Discs; i++)
+            {
+                var discTracks = (from track in tracks where track.Disc == i select track).ToList();
+                discTracks.Sort((t1, t2) => t1.Track.CompareTo(t2.Track));
+                album.Tracks[i - 1] = discTracks.ToArray();
+            }
+        }
+
+        [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
         public static AlbumInfo GetFromName(string name)
         {
             var apiResponse = new XmlDocument();
             Console.WriteLine("API Query! (Album Search)");
             apiResponse.LoadXml(
-                Web.DownloadString(String.Format("{0}/api/albums?query={1}", Program.ApiEndpoint,
+                Web.DownloadString(String.Format("{0}/api/albums?query={1}&fields=tracks&songFields=artists", Program.ApiEndpoint,
                     Uri.EscapeDataString(name))));
 
             var items = apiResponse.DocumentElement["Items"];

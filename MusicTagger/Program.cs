@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
+using TagLib;
 using TagLib.Mpeg;
 using File = System.IO.File;
 
@@ -14,12 +15,13 @@ namespace MusicTagger
     {
         public static readonly WebHeaderCollection Headers = new WebHeaderCollection();
         public static readonly string ApiEndpoint = "http://vocadb.net";
-        private static readonly List<String> Nulls = new List<string>();
+        private static readonly List<string> Nulls = new List<string>();
         private static readonly HashSet<AlbumInfo> Albums = new HashSet<AlbumInfo>(AlbumInfo.AlbumInfoComparer);
 
         private static void Main(string[] args)
         {
-            var dir = @"E:\Users\Cayde\Documents\Visual Studio 2013\Projects\MusicTagger\MusicTagger\bin\TestData";
+//            var dir = @"E:\Users\Cayde\Music";
+            const string dir = @"E:\Users\Cayde\Documents\Visual Studio 2013\Projects\MusicTagger\MusicTagger\bin\TestData";
 //            var info = AlbumInfo.GetFromId(2278);
             IterateDirectory(new DirectoryInfo(dir));
             File.WriteAllLines(Path.Combine(dir, "new-fails.txt"), Nulls);
@@ -29,6 +31,7 @@ namespace MusicTagger
         private static void IterateDirectory(DirectoryInfo di)
         {
             Console.WriteLine("Processing Folder: {0}", di.Name);
+            Console.Title = di.Name;
 
             di.GetDirectories().ToList().ForEach(IterateDirectory);
             di.GetFiles().ToList().ForEach(ProcessFile);
@@ -37,11 +40,15 @@ namespace MusicTagger
         [SuppressMessage("ReSharper", "AssignNullToNotNullAttribute")]
         private static void ProcessFile(FileInfo file)
         {
-            Console.WriteLine("Processing file: {0}", file.Name);
+            Console.Write("Processing file: {0}:\t", file.Name);
             try
             {
                 var music = TagLib.File.Create(file.FullName) as AudioFile;
-                if (music == null || Nulls.Contains(music.Tag.Album)) return;
+                if (music == null || Nulls.Contains(music.Tag.Album))
+                {
+                    Console.WriteLine("Skipping...");
+                    return;
+                }
 
                 AlbumInfo album = null;
                 if (File.Exists(Path.Combine(file.DirectoryName, "vocadb.txt")))
@@ -56,15 +63,21 @@ namespace MusicTagger
                 }
                 if (album == null) album = GetForAlbum(music.Tag.Album);
 
-                if (album == null) return;
+                if (album == null)
+                {
+                    Nulls.Add(music.Tag.Album);
+                    return;
+                }
 
                 album.WriteToFile(music);
+                Console.WriteLine("Done!");
                 Thread.Sleep(200);
             }
             catch (Exception ex)
             {
+                Console.WriteLine();
                 //ignored
-                //Console.WriteLine("Exception! of type: {0}", ex);
+                if (!(ex is UnsupportedFormatException)) Console.WriteLine("Exception! of type: {0}", ex);
             }
         }
 
