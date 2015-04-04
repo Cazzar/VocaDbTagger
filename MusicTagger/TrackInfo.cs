@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace MusicTagger
 {
-    internal class TrackInfo
+    public class TrackInfo
     {
         public TrackInfo(string title, Artist[] artists, uint disc, uint track, uint length)
         {
@@ -22,7 +22,8 @@ namespace MusicTagger
             {
                 var artists   = String.Join(", ", from artist in Artists where artist.Categories == "Producer" select artist.Name);
                 var vocaloids = String.Join(", ", from artist in Artists where artist.Categories == "Vocalist" select artist.Name);
-                return String.Format("{0} {1}", artists, vocaloids);
+
+                return String.IsNullOrWhiteSpace(vocaloids) ? artists : String.Format("{0} feat. {1}", artists, vocaloids);
             }
         }
 

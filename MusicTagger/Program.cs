@@ -14,6 +14,8 @@ namespace MusicTagger
 {
     internal class Program
     {
+        public const string Version = "1.0";
+
         public static readonly WebHeaderCollection Headers = new WebHeaderCollection();
         public static readonly string ApiEndpoint = "http://vocadb.net";
         private static readonly List<string> Nulls = new List<string>();

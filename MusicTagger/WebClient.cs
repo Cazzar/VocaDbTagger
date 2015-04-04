@@ -13,7 +13,7 @@ namespace MusicTagger
             if (req == null) return null;
 
             req.Accept = "application/xml";
-            req.UserAgent = "VocaDB Tagger (" + Assembly.GetEntryAssembly().GetName().Version + ") By Cazzar";
+            req.UserAgent = "VocaDB Tagger (" + Program.Version + ") By Cazzar";
 
             return req;
         }

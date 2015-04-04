@@ -10,7 +10,7 @@ using Tag = TagLib.Id3v2.Tag;
 
 namespace MusicTagger
 {
-    internal class AlbumInfo
+    public class AlbumInfo
     {
         private static readonly WebClient Web = new WebClient {Encoding = Encoding.UTF8};
         private static readonly IEqualityComparer<AlbumInfo> AlbumInfoComparerInstance = new AlbumInfoEqualityComparer();
@@ -36,11 +36,14 @@ namespace MusicTagger
         public string Name { get; private set; }
         public TrackInfo[][] Tracks { get; private set; }
         public uint Discs { get; private set; }
-        public uint ReleaseDate { get; private set; }
+        public uint ReleaseYear { get; private set; }
 
-        public uint TrackCount
+        public uint TotalTrackCount
         {
-            get { return (uint) Tracks.Length; }
+            get
+            {
+                return Tracks.Aggregate<TrackInfo[], uint>(0, (current, t) => current + Convert.ToUInt32(t.Length));
+            }
         }
 
         public IPicture Picture { get; private set; }
@@ -73,14 +76,14 @@ namespace MusicTagger
             var uniqueArtists = artists.Distinct().ToList();
             uniqueArtists.Sort((a, b) => artists.Count(v => v == a) - artists.Count(v => v == b));
 
-            tag.AlbumArtists = uniqueArtists.Count() > 1 ? new []{"Various Artists"} : uniqueArtists.Select(a => a.Name).ToArray();
+            tag.AlbumArtists = new[] {ArtistString()};//uniqueArtists.Count() > 1 ? new []{"Various Artists"} : uniqueArtists.Select(a => a.Name).ToArray();
             tag.AlbumArtistsSort = uniqueArtists.Select(a => a.Name).ToArray();
 
             if (id3Tag != null)
             {
                 id3Tag.IsCompilation = uniqueArtists.Count > 1;
                 id3Tag.Comment = String.Format("VocaDB: {0}\nAlbum Artists{1}", VocaDbId,
-                    String.Join(", ", uniqueArtists));
+                    String.Join(", ", uniqueArtists.Select(a => a.Name)));
             }
 
             tag.Album = Name;
@@ -92,7 +95,7 @@ namespace MusicTagger
             tag.Title = info.Title;
             tag.Disc = info.Disc;
             tag.DiscCount = Discs;
-            tag.Year = ReleaseDate;
+            tag.Year = ReleaseYear;
 
             var found = false;
             for (var i = 0; i < tag.Pictures.Length; i++)
@@ -119,7 +122,7 @@ namespace MusicTagger
         public static AlbumInfo GetFromId(uint id)
         {
             var apiResponse = new XmlDocument();
-            Console.WriteLine("API Query! (Album Info by ID)");
+//            Console.WriteLine("API Query! (Album Info by ID)");
             apiResponse.LoadXml(Web.DownloadString(String.Format("{0}/api/albums/{1}?fields=tracks&songFields=artists", Program.ApiEndpoint, id)));
             return LoadFromXml(apiResponse.DocumentElement);
         }
@@ -140,12 +143,12 @@ namespace MusicTagger
             else
                 LoadTracks(Convert.ToUInt32(doc["Id"].InnerText), album);
 
-            Console.WriteLine("API Query! (Picture)");
+//            Console.WriteLine("API Query! (Picture)");
             album.Picture =
                 new Picture(
                     Web.DownloadData(String.Format("{0}/Album/CoverPicture/{1}", Program.ApiEndpoint,
                         doc["Id"].InnerText))) {Type = PictureType.FrontCover};
-            album.ReleaseDate = (doc["ReleaseDate"]["IsEmpty"].InnerText == "true") ? 0 : Convert.ToUInt32(doc["ReleaseDate"]["Year"].InnerText);//, Convert.ToInt32(doc["ReleaseDate"]["Month"].InnerText), Convert.ToInt32(doc["ReleaseDate"]["Day"].InnerText));
+            album.ReleaseYear = (doc["ReleaseDate"]["IsEmpty"].InnerText == "true") ? 0 : Convert.ToUInt32(doc["ReleaseDate"]["Year"].InnerText);//, Convert.ToInt32(doc["ReleaseDate"]["Month"].InnerText), Convert.ToInt32(doc["ReleaseDate"]["Day"].InnerText));
 
             return album;
         }
@@ -154,7 +157,7 @@ namespace MusicTagger
         private static void LoadTracks(uint id, AlbumInfo album)
         {
             var apiResponse = new XmlDocument();
-            Console.WriteLine("API Query! (Tracks)");
+//            Console.WriteLine("API Query! (Tracks)");
             apiResponse.LoadXml(Web.DownloadString(String.Format("{0}/api/albums/{1}/tracks?fields=artists", Program.ApiEndpoint, id)));
             var doc = apiResponse.DocumentElement;
             var tracks = (from node in doc.ChildNodes.Cast<XmlNode>()
@@ -204,7 +207,7 @@ namespace MusicTagger
         public static AlbumInfo GetFromName(string name)
         {
             var apiResponse = new XmlDocument();
-            Console.WriteLine("API Query! (Album Search)");
+//            Console.WriteLine("API Query! (Album Search)");
             apiResponse.LoadXml(
                 Web.DownloadString(String.Format("{0}/api/albums?query={1}&fields=tracks&songFields=artists", Program.ApiEndpoint,
                     Uri.EscapeDataString(name))));
@@ -217,6 +220,28 @@ namespace MusicTagger
         {
             if (node.Attributes != null && node.Attributes["i:nil"] == null) return false;
             return (node.Attributes["i:nil"].Value== "true");
+        }
+
+        public string ArtistString(string delim = ", ", uint leniancy = 3, uint vocalLeniancy = 3)
+        {
+            var allArtists = new List<Artist>();
+            foreach (var track in Tracks.SelectMany(disc => disc)) allArtists.AddRange(track.Artists);
+
+            var artists = allArtists.Distinct().Where(a => a.Categories == "Producer").ToList();
+            artists.Sort(
+                (a, b) => allArtists.Count(t => t.Name == a.Name).CompareTo(allArtists.Count(t => t.Name == b.Name)));
+            var vocals = allArtists.Distinct().Where(a => a.Categories == "Vocalist" && artists.Count(b => b.Name == a.Name) == 0).ToList();
+            vocals.Sort(
+                (a, b) => allArtists.Count(t => t.Name == a.Name).CompareTo(allArtists.Count(t => t.Name == b.Name)));
+            if (artists.Count() > leniancy) return "Various Artists";
+
+            var vocalists = (vocals.Count >= vocalLeniancy) ? "Various" : String.Join(", ", vocals.Select(a => a.Name));
+
+
+            return 
+                String.IsNullOrWhiteSpace(vocalists) 
+                ? String.Join(delim, artists)
+                : String.Format("{0} feat. {1}", String.Join(delim, artists.Select(a => a.Name)), vocalists);
         }
 
         private sealed class AlbumInfoEqualityComparer : IEqualityComparer<AlbumInfo>

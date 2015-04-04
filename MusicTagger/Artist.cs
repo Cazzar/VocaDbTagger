@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace MusicTagger
 {
-    internal class Artist
+    public class Artist
     {
         private static readonly IEqualityComparer<Artist> NameTypeCategoriesComparerInstance =
             new NameTypeCategoriesEqualityComparer();
