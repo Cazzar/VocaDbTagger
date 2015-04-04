@@ -20,10 +20,14 @@ namespace MusicTagger
         {
             get
             {
-                var artists   = String.Join(", ", from artist in Artists where artist.Categories == "Producer" select artist.Name);
-                var vocaloids = String.Join(", ", from artist in Artists where artist.Categories == "Vocalist" select artist.Name);
+                var artists = String.Join(", ",
+                    from artist in Artists where artist.Categories == "Producer" select artist.Name);
+                var vocaloids = String.Join(", ",
+                    from artist in Artists where artist.Categories == "Vocalist" select artist.Name);
 
-                return String.IsNullOrWhiteSpace(vocaloids) ? artists : String.Format("{0} feat. {1}", artists, vocaloids);
+                return String.IsNullOrWhiteSpace(vocaloids)
+                    ? artists
+                    : String.Format("{0} feat. {1}", artists, vocaloids);
             }
         }
 

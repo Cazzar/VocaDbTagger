@@ -15,12 +15,11 @@ namespace MusicTagger
     internal class Program
     {
         public const string Version = "1.0";
-
         public static readonly WebHeaderCollection Headers = new WebHeaderCollection();
         public static readonly string ApiEndpoint = "http://vocadb.net";
         private static readonly List<string> Nulls = new List<string>();
         private static readonly HashSet<AlbumInfo> Albums = new HashSet<AlbumInfo>(AlbumInfo.AlbumInfoComparer);
-        private static readonly Dictionary<string, uint> ManualMappings = new Dictionary<string, uint>(); 
+        private static readonly Dictionary<string, uint> ManualMappings = new Dictionary<string, uint>();
 
         private static void Main(string[] args)
         {
@@ -94,7 +93,6 @@ namespace MusicTagger
                 if (!(ex is UnsupportedFormatException))
                 {
                     Console.WriteLine("Exception! of type: {0}", ex);
-                    
                 }
             }
         }
