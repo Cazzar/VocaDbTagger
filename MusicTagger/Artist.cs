@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace MusicTagger
 {
@@ -27,6 +28,16 @@ namespace MusicTagger
         {
             return string.Equals(Name, other.Name) && string.Equals(Type, other.Type) &&
                    string.Equals(Categories, other.Categories);
+        }
+
+        public static bool operator ==(Artist a, Artist b)
+        {
+            return NameTypeCategoriesComparer.Equals(a, b);
+        }
+
+        public static bool operator !=(Artist a, Artist b)
+        {
+            return !(a == b);
         }
 
         public override bool Equals(object obj)

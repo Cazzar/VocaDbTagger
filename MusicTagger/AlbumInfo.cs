@@ -36,7 +36,7 @@ namespace MusicTagger
         public string Name { get; private set; }
         public TrackInfo[][] Tracks { get; private set; }
         public uint Discs { get; private set; }
-        public DateTime ReleaseDate { get; private set; }
+        public uint ReleaseDate { get; private set; }
 
         public uint TrackCount
         {
@@ -51,6 +51,12 @@ namespace MusicTagger
             var tag = taggedFile.Tag;
             var id3Tag = taggedFile.GetTag(TagTypes.Id3v2) as Tag;
             var disc = Tracks[Math.Min(tag.Disc - 1, 0)];
+            if (tag.Track > disc.Length) return;
+            if (tag.Track == 0 || tag.Track - 1 >= disc.Length)
+            {
+                return;
+//                ((Action) (() => { }))();
+            }
             var info = disc[tag.Track - 1];
             var artists = new List<Artist>();
 
@@ -86,7 +92,7 @@ namespace MusicTagger
             tag.Title = info.Title;
             tag.Disc = info.Disc;
             tag.DiscCount = Discs;
-            tag.Year = (uint) ReleaseDate.Year;
+            tag.Year = ReleaseDate;
 
             var found = false;
             for (var i = 0; i < tag.Pictures.Length; i++)
@@ -119,24 +125,27 @@ namespace MusicTagger
         }
 
         [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
-        private static AlbumInfo LoadFromXml(XmlNode doc)
+        private static AlbumInfo LoadFromXml(XmlNode doc, bool useTracks = true)
         {
             var album = new AlbumInfo
             {
                 Name = doc["DefaultName"].InnerText,
-                Artists = doc["ArtistString"].InnerText.Split(','),
+                Artists = new[] {doc["ArtistString"].InnerText},
                 VocaDbId = Convert.ToUInt32(doc["Id"].InnerText)
             };
 
-//            LoadTracks(Convert.ToUInt32(doc["Id"].InnerText), album);
-            LoadTracks(doc["Tracks"], album);
+
+            if (useTracks)
+                LoadTracks(doc["Tracks"], album);
+            else
+                LoadTracks(Convert.ToUInt32(doc["Id"].InnerText), album);
 
             Console.WriteLine("API Query! (Picture)");
             album.Picture =
                 new Picture(
                     Web.DownloadData(String.Format("{0}/Album/CoverPicture/{1}", Program.ApiEndpoint,
                         doc["Id"].InnerText))) {Type = PictureType.FrontCover};
-            album.ReleaseDate = new DateTime(Convert.ToInt32(doc["ReleaseDate"]["Year"].InnerText), Convert.ToInt32(doc["ReleaseDate"]["Month"].InnerText), Convert.ToInt32(doc["ReleaseDate"]["Day"].InnerText));
+            album.ReleaseDate = (doc["ReleaseDate"]["IsEmpty"].InnerText == "true") ? 0 : Convert.ToUInt32(doc["ReleaseDate"]["Year"].InnerText);//, Convert.ToInt32(doc["ReleaseDate"]["Month"].InnerText), Convert.ToInt32(doc["ReleaseDate"]["Day"].InnerText));
 
             return album;
         }
@@ -146,11 +155,11 @@ namespace MusicTagger
         {
             var apiResponse = new XmlDocument();
             Console.WriteLine("API Query! (Tracks)");
-            apiResponse.LoadXml(Web.DownloadString(String.Format("{0}/api/albums/{1}/tracks", Program.ApiEndpoint, id)));
+            apiResponse.LoadXml(Web.DownloadString(String.Format("{0}/api/albums/{1}/tracks?fields=artists", Program.ApiEndpoint, id)));
             var doc = apiResponse.DocumentElement;
-            var tracks = (from node in doc.ChildNodes.Cast<XmlNode>().Where(node => node.Name == "SongInAlbumContract")
+            var tracks = (from node in doc.ChildNodes.Cast<XmlNode>()
                 let title = node["Name"].InnerText
-                let artists = (from artist in node["Artists"].ChildNodes.Cast<XmlNode>() select new Artist(artist["Name"].InnerText, artist["Artist"]["ArtistType"].InnerText, artist["Categories"].InnerText)).ToArray()
+                let artists = (from artist in node["Song"]["Artists"].ChildNodes.Cast<XmlNode>() select new Artist(artist["Name"].InnerText, !IsEmpty(artist["Artist"]) ? artist["Artist"]["ArtistType"].InnerText : "", artist["Categories"].InnerText)).ToArray()
                 let disc = Convert.ToUInt32(node["DiscNumber"].InnerText)
                 let track = Convert.ToUInt32(node["TrackNumber"].InnerText)
                 let length = Convert.ToUInt32(node["Song"]["LengthSeconds"].InnerText)
@@ -175,7 +184,7 @@ namespace MusicTagger
         {
             var tracks = (from node in tracksNode.ChildNodes.Cast<XmlNode>()
                           let title = node["Name"].InnerText
-                          let artists = (from artist in node["Song"]["Artists"].ChildNodes.Cast<XmlNode>() select new Artist(artist["Name"].InnerText, artist["Artist"]["ArtistType"].InnerText, artist["Categories"].InnerText)).ToArray()
+                          let artists = (from artist in node["Song"]["Artists"].ChildNodes.Cast<XmlNode>() select new Artist(artist["Name"].InnerText, !IsEmpty(artist["Artist"]) ? artist["Artist"]["ArtistType"].InnerText : "", artist["Categories"].InnerText)).ToArray()
                           let disc = Convert.ToUInt32(node["DiscNumber"].InnerText)
                           let track = Convert.ToUInt32(node["TrackNumber"].InnerText)
                           let length = Convert.ToUInt32(node["Song"]["LengthSeconds"].InnerText)
@@ -201,7 +210,13 @@ namespace MusicTagger
                     Uri.EscapeDataString(name))));
 
             var items = apiResponse.DocumentElement["Items"];
-            return items.FirstChild == null ? null : LoadFromXml(items.FirstChild);
+            return items.FirstChild == null ? null : LoadFromXml(items.FirstChild, false);
+        }
+
+        static bool IsEmpty(XmlNode node)
+        {
+            if (node.Attributes != null && node.Attributes["i:nil"] == null) return false;
+            return (node.Attributes["i:nil"].Value== "true");
         }
 
         private sealed class AlbumInfoEqualityComparer : IEqualityComparer<AlbumInfo>
