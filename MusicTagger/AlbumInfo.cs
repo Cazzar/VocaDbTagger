@@ -228,20 +228,19 @@ namespace MusicTagger
             foreach (var track in Tracks.SelectMany(disc => disc)) allArtists.AddRange(track.Artists);
 
             var artists = allArtists.Distinct().Where(a => a.Categories == "Producer").ToList();
-            artists.Sort(
-                (a, b) => allArtists.Count(t => t.Name == a.Name).CompareTo(allArtists.Count(t => t.Name == b.Name)));
             var vocals = allArtists.Distinct().Where(a => a.Categories == "Vocalist" && artists.Count(b => b.Name == a.Name) == 0).ToList();
-            vocals.Sort(
-                (a, b) => allArtists.Count(t => t.Name == a.Name).CompareTo(allArtists.Count(t => t.Name == b.Name)));
+
+            artists.Sort((a, b) => allArtists.Count(t => t.Name == a.Name) - allArtists.Count(t => t.Name == b.Name));
+            vocals.Sort((a, b) => allArtists.Count(t => t.Name == a.Name) - allArtists.Count(t => t.Name == b.Name));
+
             if (artists.Count() > leniancy) return "Various Artists";
 
             var vocalists = (vocals.Count >= vocalLeniancy) ? "Various" : String.Join(", ", vocals.Select(a => a.Name));
 
-
-            return 
-                String.IsNullOrWhiteSpace(vocalists) 
-                ? String.Join(delim, artists)
-                : String.Format("{0} feat. {1}", String.Join(delim, artists.Select(a => a.Name)), vocalists);
+            if (String.IsNullOrWhiteSpace(vocalists)) 
+                return String.Join(delim, artists);
+            else
+                return String.Format("{0} feat. {1}", String.Join(delim, artists.Select(a => a.Name)), vocalists);
         }
 
         private sealed class AlbumInfoEqualityComparer : IEqualityComparer<AlbumInfo>
