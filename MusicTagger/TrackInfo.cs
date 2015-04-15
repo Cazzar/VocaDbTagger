@@ -21,9 +21,9 @@ namespace MusicTagger
             get
             {
                 var artists = String.Join(", ",
-                    from artist in Artists where artist.Categories == "Producer" select artist.Name);
+                    from artist in Artists where artist.Categories.Contains("Producer") select artist.Name);
                 var vocaloids = String.Join(", ",
-                    from artist in Artists where artist.Categories == "Vocalist" select artist.Name);
+                    from artist in Artists where artist.Categories.Contains("Vocalist") select artist.Name);
 
                 return String.IsNullOrWhiteSpace(vocaloids)
                     ? artists

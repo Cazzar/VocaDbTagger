@@ -167,7 +167,7 @@ namespace MusicTagger
             var tracks = (from node in doc.ChildNodes.Cast<XmlNode>()
                 let title = node["Name"].InnerText
                 let artists = (from artist in node["Song"]["Artists"].ChildNodes.Cast<XmlNode>()
-                    select
+                    select 
                         new Artist(artist["Name"].InnerText,
                             !IsEmpty(artist["Artist"]) ? artist["Artist"]["ArtistType"].InnerText : "",
                             artist["Categories"].InnerText)).ToArray()
@@ -231,7 +231,7 @@ namespace MusicTagger
 
         private static bool IsEmpty(XmlNode node)
         {
-            if (node.Attributes != null && node.Attributes["i:nil"] == null) return false;
+            if (node.Attributes == null || node.Attributes["i:nil"] == null) return false;
             return (node.Attributes["i:nil"].Value == "true");
         }
 

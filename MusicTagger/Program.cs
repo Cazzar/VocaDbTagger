@@ -6,47 +6,90 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
+using NDesk.Options;
 using TagLib;
 using TagLib.Mpeg;
 using File = System.IO.File;
 
 namespace MusicTagger
 {
-    internal class Program
+    public class Program
     {
         public const string Version = "1.0";
         public static readonly WebHeaderCollection Headers = new WebHeaderCollection();
-        public static readonly string ApiEndpoint = "http://vocadb.net";
+        public static string ApiEndpoint { get; set; }
+
         private static readonly List<string> Nulls = new List<string>();
         private static readonly HashSet<AlbumInfo> Albums = new HashSet<AlbumInfo>(AlbumInfo.AlbumInfoComparer);
-        private static readonly Dictionary<string, uint> ManualMappings = new Dictionary<string, uint>();
 
         private static void Main(string[] args)
         {
-            const string dir = @"E:\Users\Cayde\Music";
-//            const string dir = @"E:\Users\Cayde\Documents\Visual Studio 2013\Projects\MusicTagger\MusicTagger\bin\TestData";
-//            var info = AlbumInfo.GetFromId(2278);
-
-            var manualMappings = Path.Combine(dir, "manual_mapping.txt");
-            var mappings = File.ReadAllLines(manualMappings);
-
-            foreach (var mapping in (from m in mappings select m.Split('=')).Where(a => a.Length == 2))
-                ManualMappings.Add(mapping[0], Convert.ToUInt32(mapping[1]));
-
-            Console.OutputEncoding = Encoding.UTF8;
-
-            IterateDirectory(new DirectoryInfo(dir));
-            File.WriteAllLines(Path.Combine(dir, "new-fails.txt"), Nulls);
+            ApiEndpoint = "http://vocadb.net";
+            Console.WriteLine(AlbumInfo.GetFromId(2001).Tracks[0][0].ArtistString);
             Console.ReadKey();
+
+            return;
+            if (args.Length != 3)
+            {
+                Console.WriteLine("Usage: [folder/file] [id] [vocadb/utaudb]");
+                return;
+            }
+
+            switch (args[2].ToLower())
+            {
+                case "utaudb":
+                case "utau":
+                case "u":
+                    ApiEndpoint = "http://utaitedb.net/";
+                    break;
+                case "vocadb":
+                case "vocaloid":
+                case "voca":
+                case "v":
+                    ApiEndpoint = "http://vocadb.net";
+                    break;
+                default:
+                    Console.WriteLine("Unrecognised database: {0}", args[2]);
+                    return;
+            }
+
+            AlbumInfo album = null;
+            try
+            {
+                var id = Convert.ToUInt32(args[1]);
+                album = AlbumInfo.GetFromId(id);
+            }
+            catch (Exception)
+            {
+                Console.WriteLine("Invalid ID {0}, or possible API error", args[1]);
+            }
+
+            IterateDirectory(new DirectoryInfo(args[0]), f => ProcessFileWithAlbum(f, album));
         }
 
-        private static void IterateDirectory(DirectoryInfo di)
+        private static void ProcessFileWithAlbum(FileSystemInfo file, AlbumInfo album)
+        {
+            Console.WriteLine("Processing file: {0}", file.Name);
+            try
+            {
+                var audio = TagLib.File.Create(file.FullName) as AudioFile;
+                if (audio == null) return;
+
+                album.WriteToFile(audio);
+            }
+            catch (Exception)
+            {
+                //ignored
+            }
+        }
+
+        private static void IterateDirectory(DirectoryInfo di, Action<FileInfo> processAction)
         {
             Console.WriteLine("Processing Folder: {0}", di.Name);
             Console.Title = di.Name;
 
-            di.GetDirectories().ToList().ForEach(IterateDirectory);
-            di.GetFiles().ToList().ForEach(ProcessFile);
+            di.GetDirectories().ToList().ForEach(d => IterateDirectory(d, processAction));
+            di.GetFiles().ToList().ForEach(processAction);
         }
 
         [SuppressMessage("ReSharper", "AssignNullToNotNullAttribute")]
@@ -67,7 +110,6 @@ namespace MusicTagger
                 {
                     var id = Convert.ToUInt32(File.ReadAllLines(Path.Combine(file.DirectoryName, "vocadb.txt"))[0]);
                     album = Albums.FirstOrDefault(a => a.VocaDbId == id);
-                    if (9919 == id) return;
                     if (album == null)
                     {
                         album = AlbumInfo.GetFromId(id);
@@ -103,18 +145,6 @@ namespace MusicTagger
 
             if (album == null)
             {
-                if (ManualMappings.ContainsKey(name))
-                {
-                    var id = ManualMappings[name];
-                    album = Albums.FirstOrDefault(a => a.VocaDbId == id) ??
-                            AlbumInfo.GetFromId(id);
-                    if (album != null)
-                    {
-                        Albums.Add(album);
-                        return album;
-                    }
-                }
-
                 album = AlbumInfo.GetFromName(name);
                 if (album != null) Albums.Add(album);
             }

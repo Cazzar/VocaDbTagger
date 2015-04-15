@@ -12,6 +12,7 @@ namespace ApiTest
         [TestInitialize]
         public void Setup()
         {
+            Program.ApiEndpoint = "http://vocadb.net";
             _iSayLove = AlbumInfo.GetFromId(9692);
             Assert.IsNotNull(_iSayLove, "API Get Failed.");
         }
