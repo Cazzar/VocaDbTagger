@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VocaDb.Model", "VocaDbModel\VocaDb.Model.csproj", "{024D07DF-F669-46E9-9514-3AB8094F74AC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MusicTool", "MusicTool\MusicTool.csproj", "{AEF6D207-1C9D-494F-BF23-1596E01B3D31}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MusicTagger", "MusicTagger\MusicTagger.csproj", "{A0A4F250-63B5-46DE-8D96-23B8156C988A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{024D07DF-F669-46E9-9514-3AB8094F74AC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{024D07DF-F669-46E9-9514-3AB8094F74AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{024D07DF-F669-46E9-9514-3AB8094F74AC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{024D07DF-F669-46E9-9514-3AB8094F74AC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AEF6D207-1C9D-494F-BF23-1596E01B3D31}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AEF6D207-1C9D-494F-BF23-1596E01B3D31}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AEF6D207-1C9D-494F-BF23-1596E01B3D31}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AEF6D207-1C9D-494F-BF23-1596E01B3D31}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0A4F250-63B5-46DE-8D96-23B8156C988A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0A4F250-63B5-46DE-8D96-23B8156C988A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0A4F250-63B5-46DE-8D96-23B8156C988A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0A4F250-63B5-46DE-8D96-23B8156C988A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

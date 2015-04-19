@@ -1,157 +1,61 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
-using System.Threading;
-using NDesk.Options;
-using TagLib;
-using TagLib.Mpeg;
-using File = System.IO.File;
+using CommandLine;
+using MusicTool;
+using VocaDb.Model.DataContracts.Albums;
 
 namespace MusicTagger
 {
-    public class Program
+    class Program
     {
-        public const string Version = "1.0";
-        public static readonly WebHeaderCollection Headers = new WebHeaderCollection();
-        public static string ApiEndpoint { get; set; }
-
-        private static readonly List<string> Nulls = new List<string>();
-        private static readonly HashSet<AlbumInfo> Albums = new HashSet<AlbumInfo>(AlbumInfo.AlbumInfoComparer);
-
-        private static void Main(string[] args)
+        private static AlbumForApiContract _album;
+        private static byte[] _image;
+        static void Main(string[] args)
         {
-            ApiEndpoint = "http://vocadb.net";
-            Console.WriteLine(AlbumInfo.GetFromId(2001).Tracks[0][0].ArtistString);
-            Console.ReadKey();
-
-            return;
-            if (args.Length != 3)
-            {
-                Console.WriteLine("Usage: [folder/file] [id] [vocadb/utaudb]");
+            var options = CommandlineOptions.Options;
+            if (!Parser.Default.ParseArguments(args, options))            
                 return;
-            }
 
-            switch (args[2].ToLower())
+            if (!options.NoTag)
             {
-                case "utaudb":
-                case "utau":
-                case "u":
-                    ApiEndpoint = "http://utaitedb.net/";
-                    break;
-                case "vocadb":
-                case "vocaloid":
-                case "voca":
-                case "v":
-                    ApiEndpoint = "http://vocadb.net";
-                    break;
-                default:
-                    Console.WriteLine("Unrecognised database: {0}", args[2]);
-                    return;
+                _album = AlbumUtil.GetAlbumById(options.DatabaseId, options.Database, options.Verbose);
+                if (options.Verbose) Console.WriteLine("Downloading URI: {0}", String.Format("{0}/Album/CoverPicture/{1}", options.Database, _album.Id));
+                _image =
+                    new WebClient().DownloadData(String.Format("{0}/Album/CoverPicture/{1}", options.Database, _album.Id));
             }
+            var item = options.WorkItem;
 
-            AlbumInfo album = null;
-            try
-            {
-                var id = Convert.ToUInt32(args[1]);
-                album = AlbumInfo.GetFromId(id);
-            }
-            catch (Exception)
-            {
-                Console.WriteLine("Invalid ID {0}, or possible API error", args[1]);
-            }
+            if (File.Exists(item))
+                ProcessFile(new FileInfo(item));
+            else if (Directory.Exists(item))
+                IterateDirectory(new DirectoryInfo(item), ProcessFile);
 
-            IterateDirectory(new DirectoryInfo(args[0]), f => ProcessFileWithAlbum(f, album));
+#if DEBUG
+            Console.ReadLine();
+#endif
         }
 
-        private static void ProcessFileWithAlbum(FileSystemInfo file, AlbumInfo album)
+        private static void ProcessFile(FileInfo file)
         {
-            Console.WriteLine("Processing file: {0}", file.Name);
-            try
-            {
-                var audio = TagLib.File.Create(file.FullName) as AudioFile;
-                if (audio == null) return;
+            if (!file.CanFileBeProcessed()) return;
 
-                album.WriteToFile(audio);
-            }
-            catch (Exception)
-            {
-                //ignored
-            }
+            var simulate = CommandlineOptions.Options.Simulate;
+            var util = new FileUtil(file, _album, _image);
+            if (!CommandlineOptions.Options.NoTag)
+                util.RetagFile(CommandlineOptions.Options.PreferLyrics, simulate);
+            
+            util.RenameFile(CommandlineOptions.Options.OutputDir, simulate);
         }
 
         private static void IterateDirectory(DirectoryInfo di, Action<FileInfo> processAction)
         {
-            Console.WriteLine("Processing Folder: {0}", di.Name);
+            if (CommandlineOptions.Options.Verbose) Console.WriteLine("Processing Folder: {0}", di.Name);
             Console.Title = di.Name;
 
             di.GetDirectories().ToList().ForEach(d => IterateDirectory(d, processAction));
             di.GetFiles().ToList().ForEach(processAction);
-        }
-
-        [SuppressMessage("ReSharper", "AssignNullToNotNullAttribute")]
-        private static void ProcessFile(FileInfo file)
-        {
-            Console.Write("Processing file: {0}:\t", file.Name);
-            try
-            {
-                var music = TagLib.File.Create(file.FullName) as AudioFile;
-                if (music == null || Nulls.Contains(music.Tag.Album))
-                {
-                    Console.WriteLine("Skipping...");
-                    return;
-                }
-
-                AlbumInfo album = null;
-                if (File.Exists(Path.Combine(file.DirectoryName, "vocadb.txt")))
-                {
-                    var id = Convert.ToUInt32(File.ReadAllLines(Path.Combine(file.DirectoryName, "vocadb.txt"))[0]);
-                    album = Albums.FirstOrDefault(a => a.VocaDbId == id);
-                    if (album == null)
-                    {
-                        album = AlbumInfo.GetFromId(id);
-                        Albums.Add(album);
-                    }
-                }
-                if (album == null) album = GetForAlbum(music.Tag.Album);
-
-                if (album == null)
-                {
-                    Nulls.Add(music.Tag.Album);
-                    return;
-                }
-
-                album.WriteToFile(music);
-                Console.WriteLine("Done!");
-                Thread.Sleep(200);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine();
-                //ignored
-                if (!(ex is UnsupportedFormatException))
-                {
-                    Console.WriteLine("Exception! of type: {0}", ex);
-                }
-            }
-        }
-
-        private static AlbumInfo GetForAlbum(string name)
-        {
-            var album = Albums.FirstOrDefault(a => a.Name == name);
-
-            if (album == null)
-            {
-                album = AlbumInfo.GetFromName(name);
-                if (album != null) Albums.Add(album);
-            }
-            if (album != null) return album;
-
-            Nulls.Add(name);
-            return null;
         }
     }
 }
