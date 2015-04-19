@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using TagLib;
@@ -36,6 +37,7 @@ namespace MusicTool
             if (_trackInformation == null && albumInfomation != null) throw new ArgumentException("The track information was somehow null for file: " + operatingFile.FullName);
         }
 
+        [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
         public bool RenameFile(string destDir, bool simulate = false)
         {
             if (_operatingFile.IsReadOnly && !simulate) _operatingFile.Attributes = Util.RemoveAttribute(_operatingFile.Attributes, FileAttributes.ReadOnly);
@@ -77,7 +79,7 @@ namespace MusicTool
 
             Debug.Assert(_operatingFile.Directory != null, "file.Directory != null");
             string[] types = { "*.jpg", "*.png", "scans.*", "vocadb.txt" };
-            foreach (var type in types)
+            foreach (var type in types.Where(type => _operatingFile.Directory != null))
             {
                 _operatingFile.Directory.GetFiles(type).ToList().ForEach(fi =>
                 {
@@ -87,6 +89,7 @@ namespace MusicTool
                     if (simulate)
                     {
                         Console.WriteLine("Copy {0} to {1}", fi.FullName, path);
+                        return;
                     }
                     
                     fi.CopyTo(path);
